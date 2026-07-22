@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创意工坊 - 迷宫分享社区</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="header">
+        <h1>🎮 创意工坊</h1>
+        <p class="subtitle">分享你的游戏地图与创意文件</p>
+    </header>
+
+    <main class="container">
+        <!-- 上传区域 -->
+        <section class="upload-section">
+            <h2>上传作品</h2>
+            <div class="upload-form">
+                <div class="form-group">
+                    <label for="uploaderName">上传者昵称</label>
+                    <input type="text" id="uploaderName" placeholder="例如：CutePanda" maxlength="30">
+                </div>
+                <div class="form-group">
+                    <label for="fileInput">选择 TXT 地图文件</label>
+                    <input type="file" id="fileInput" accept=".txt">
+                </div>
+                <button id="uploadBtn" class="btn-primary">上传到工坊</button>
+            </div>
+        </section>
+
+        <!-- 作品列表 -->
+        <section class="list-section">
+            <div class="list-header">
+                <h2>全部作品 <span id="workCount" class="count">0</span></h2>
+                <button id="clearBtn" class="btn-danger">清空全部</button>
+            </div>
+            <div id="workList" class="work-list">
+                <div class="empty-tip">暂无作品，快来上传第一个吧～</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 预览弹窗 -->
+    <div id="previewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="previewTitle">文件预览</h3>
+                <button class="close-btn" onclick="closePreview()">×</button>
+            </div>
+            <pre id="previewContent" class="preview-text"></pre>
+            <div class="modal-footer">
+                <span id="previewUploader" class="uploader-tip"></span>
+                <button id="downloadBtn" class="btn-primary">下载文件</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>基于 GitHub Pages 部署 · 本地存储创意工坊</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
