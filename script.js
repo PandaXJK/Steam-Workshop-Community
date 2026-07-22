@@ -5,7 +5,7 @@ const BUCKET_NAME = "swc";
 // ==============================================
 
 // 初始化 Supabase 客户端
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 // DOM 元素（和原页面完全对应，不用改）
 const uploaderNameInput = document.getElementById('uploaderName');
