@@ -1,13 +1,8 @@
-// ========== 配置区：替换成你自己的信息 ==========
-const SUPABASE_URL = "https://nrraezafykxlfxfozczo.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_bfoHvgNPpdnY5E25q_-NTQ_leOuGKVJ";
-const BUCKET_NAME = "swc";
-// ==============================================
+const STORAGE_KEY = 'workshop_files';
+let works = [];
+let currentPreviewWork = null;
 
-// 初始化 Supabase 客户端
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-
-// DOM 元素（和原页面完全对应，不用改）
+// DOM 元素
 const uploaderNameInput = document.getElementById('uploaderName');
 const fileInput = document.getElementById('fileInput');
 const uploadBtn = document.getElementById('uploadBtn');
@@ -20,33 +15,25 @@ const previewContent = document.getElementById('previewContent');
 const previewUploader = document.getElementById('previewUploader');
 const downloadBtn = document.getElementById('downloadBtn');
 
-let works = [];
-let currentPreviewWork = null;
-
 // 初始化
 function init() {
     loadWorks();
+    renderList();
     bindEvents();
 }
 
-// 从云端数据库加载所有作品
-async function loadWorks() {
-    const { data, error } = await supabase
-        .from("works")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-    if (error) {
-        console.error("加载作品失败：", error);
-        alert("加载作品列表失败，请刷新页面重试");
-        return;
-    }
-
-    works = data;
-    renderList();
+// 从 localStorage 加载数据
+function loadWorks() {
+    const data = localStorage.getItem(STORAGE_KEY);
+    works = data ? JSON.parse(data) : [];
 }
 
-// 渲染列表（样式和原版完全一致）
+// 保存到 localStorage
+function saveWorks() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(works));
+}
+
+// 渲染列表
 function renderList() {
     workCount.textContent = works.length;
     
@@ -55,23 +42,23 @@ function renderList() {
         return;
     }
 
-    workList.innerHTML = works.map((work) => `
-        <div class="work-item" data-id="${work.id}">
+    workList.innerHTML = works.map((work, index) => `
+        <div class="work-item">
             <div class="work-info">
                 <h3>${escapeHtml(work.filename)}</h3>
-                <span class="meta">上传者：${escapeHtml(work.uploader)}</span>
+                <span class="meta">上传者：${escapeHtml(work.uploader)} · ${work.size} 字节</span>
             </div>
             <div class="work-actions">
-                <button class="action-btn" onclick="previewWork(${work.id})">预览</button>
-                <button class="action-btn" onclick="downloadWork(${work.id})">下载</button>
-                <button class="action-btn delete" onclick="deleteWork(${work.id})">删除</button>
+                <button class="action-btn" onclick="previewWork(${index})">预览</button>
+                <button class="action-btn" onclick="downloadWork(${index})">下载</button>
+                <button class="action-btn delete" onclick="deleteWork(${index})">删除</button>
             </div>
         </div>
     `).join('');
 }
 
 // 上传处理
-uploadBtn.addEventListener('click', async () => {
+uploadBtn.addEventListener('click', () => {
     const uploader = uploaderNameInput.value.trim();
     const file = fileInput.files[0];
 
@@ -88,78 +75,37 @@ uploadBtn.addEventListener('click', async () => {
         return;
     }
 
-    uploadBtn.disabled = true;
-    uploadBtn.textContent = "上传中...";
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const content = e.target.result;
+        const work = {
+            uploader: uploader,
+            filename: file.name,
+            content: content,
+            size: content.length,
+            uploadTime: Date.now()
+        };
 
-    try {
-        // 1. 生成唯一文件名，防止重名覆盖
-        const storageFileName = `${Date.now()}_${file.name}`;
+        works.unshift(work);
+        saveWorks();
+        renderList();
 
-        // 2. 上传文件到存储桶
-        const { error: uploadError } = await supabase
-            .storage
-            .from(BUCKET_NAME)
-            .upload(storageFileName, file, {
-                cacheControl: "3600",
-                upsert: false
-            });
-
-        if (uploadError) throw uploadError;
-
-        // 3. 获取文件公开链接
-        const { data: { publicUrl } } = supabase
-            .storage
-            .from(BUCKET_NAME)
-            .getPublicUrl(storageFileName);
-
-        // 4. 写入作品信息到数据库
-        const { error: dbError } = await supabase
-            .from("works")
-            .insert([
-                {
-                    uploader: uploader,
-                    filename: file.name,
-                    file_url: publicUrl
-                }
-            ]);
-
-        if (dbError) throw dbError;
-
-        // 上传成功，重置表单并刷新列表
-        alert('上传成功！');
+        // 重置表单
         uploaderNameInput.value = '';
         fileInput.value = '';
-        loadWorks();
-
-    } catch (err) {
-        console.error("上传失败：", err);
-        alert("上传失败：" + err.message);
-    } finally {
-        uploadBtn.disabled = false;
-        uploadBtn.textContent = "上传到工坊";
-    }
+        
+        alert('上传成功！');
+    };
+    reader.readAsText(file);
 });
 
-// 预览作品
-async function previewWork(id) {
-    const work = works.find(item => item.id === id);
-    if (!work) return;
-
-    currentPreviewWork = work;
-    previewTitle.textContent = work.filename;
-    previewUploader.textContent = `上传者：${work.uploader}`;
-    previewContent.textContent = "加载中...";
+// 预览
+function previewWork(index) {
+    currentPreviewWork = works[index];
+    previewTitle.textContent = currentPreviewWork.filename;
+    previewContent.textContent = currentPreviewWork.content;
+    previewUploader.textContent = `上传者：${currentPreviewWork.uploader}`;
     previewModal.classList.add('show');
-
-    try {
-        // 从云端拉取文件内容用于预览
-        const res = await fetch(work.file_url);
-        const text = await res.text();
-        previewContent.textContent = text;
-    } catch (err) {
-        previewContent.textContent = "预览加载失败，请直接下载查看";
-        console.error(err);
-    }
 }
 
 function closePreview() {
@@ -174,57 +120,46 @@ previewModal.addEventListener('click', (e) => {
     }
 });
 
-// 下载作品
-function downloadWork(id) {
-    const work = works.find(item => item.id === id);
-    if (!work) return;
-
-    const a = document.createElement('a');
-    a.href = work.file_url;
-    a.download = work.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+// 下载
+function downloadWork(index) {
+    const work = works[index];
+    downloadTxtFile(work.filename, work.content);
 }
 
 downloadBtn.addEventListener('click', () => {
     if (currentPreviewWork) {
-        downloadWork(currentPreviewWork.id);
+        downloadTxtFile(currentPreviewWork.filename, currentPreviewWork.content);
     }
 });
 
-// 删除作品
-async function deleteWork(id) {
-    if (!confirm('确定要删除这个作品吗？')) return;
+function downloadTxtFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 
-    try {
-        const { error } = await supabase
-            .from("works")
-            .delete()
-            .eq("id", id);
-
-        if (error) throw error;
-        loadWorks();
-    } catch (err) {
-        alert("删除失败：" + err.message);
-        console.error(err);
+// 删除
+function deleteWork(index) {
+    if (confirm('确定要删除这个作品吗？')) {
+        works.splice(index, 1);
+        saveWorks();
+        renderList();
     }
 }
 
 // 清空全部
-clearBtn.addEventListener('click', async () => {
+clearBtn.addEventListener('click', () => {
     if (works.length === 0) return;
-    if (!confirm('确定要清空所有作品吗？此操作不可恢复。')) return;
-
-    try {
-        // 逐条删除（简单稳妥，适合小数据量）
-        for (const work of works) {
-            await supabase.from("works").delete().eq("id", work.id);
-        }
-        loadWorks();
-    } catch (err) {
-        alert("清空失败：" + err.message);
-        console.error(err);
+    if (confirm('确定要清空所有作品吗？此操作不可恢复。')) {
+        works = [];
+        saveWorks();
+        renderList();
     }
 });
 
