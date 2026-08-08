@@ -1,8 +1,6 @@
-const STORAGE_KEY = 'workshop_files';
 let works = [];
 let currentPreviewWork = null;
 
-// DOM 元素
 const uploaderNameInput = document.getElementById('uploaderName');
 const fileInput = document.getElementById('fileInput');
 const uploadBtn = document.getElementById('uploadBtn');
@@ -15,25 +13,21 @@ const previewContent = document.getElementById('previewContent');
 const previewUploader = document.getElementById('previewUploader');
 const downloadBtn = document.getElementById('downloadBtn');
 
-// 初始化
 function init() {
     loadWorks();
-    renderList();
     bindEvents();
 }
 
-// 从 localStorage 加载数据
+// 从数据库加载
 function loadWorks() {
-    const data = localStorage.getItem(STORAGE_KEY);
-    works = data ? JSON.parse(data) : [];
+    fetch('/api/works')
+        .then(res => res.json())
+        .then(data => {
+            works = data;
+            renderList();
+        });
 }
 
-// 保存到 localStorage
-function saveWorks() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(works));
-}
-
-// 渲染列表
 function renderList() {
     workCount.textContent = works.length;
     
@@ -41,7 +35,6 @@ function renderList() {
         workList.innerHTML = '<div class="empty-tip">暂无作品，快来上传第一个吧～</div>';
         return;
     }
-
     workList.innerHTML = works.map((work, index) => `
         <div class="work-item">
             <div class="work-info">
@@ -57,11 +50,10 @@ function renderList() {
     `).join('');
 }
 
-// 上传处理
+// 上传
 uploadBtn.addEventListener('click', () => {
     const uploader = uploaderNameInput.value.trim();
     const file = fileInput.files[0];
-
     if (!uploader) {
         alert('请填写上传者昵称');
         return;
@@ -74,32 +66,29 @@ uploadBtn.addEventListener('click', () => {
         alert('只支持 TXT 格式文件');
         return;
     }
-
     const reader = new FileReader();
     reader.onload = (e) => {
         const content = e.target.result;
-        const work = {
-            uploader: uploader,
-            filename: file.name,
-            content: content,
-            size: content.length,
-            uploadTime: Date.now()
-        };
-
-        works.unshift(work);
-        saveWorks();
-        renderList();
-
-        // 重置表单
-        uploaderNameInput.value = '';
-        fileInput.value = '';
-        
-        alert('上传成功！');
+        fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                uploader: uploader,
+                filename: file.name,
+                content: content
+            })
+        })
+        .then(res => res.json())
+        .then(() => {
+            loadWorks();
+            uploaderNameInput.value = '';
+            fileInput.value = '';
+            alert('上传成功！');
+        });
     };
     reader.readAsText(file);
 });
 
-// 预览
 function previewWork(index) {
     currentPreviewWork = works[index];
     previewTitle.textContent = currentPreviewWork.filename;
@@ -113,14 +102,12 @@ function closePreview() {
     currentPreviewWork = null;
 }
 
-// 点击遮罩关闭
 previewModal.addEventListener('click', (e) => {
     if (e.target === previewModal) {
         closePreview();
     }
 });
 
-// 下载
 function downloadWork(index) {
     const work = works[index];
     downloadTxtFile(work.filename, work.content);
@@ -144,35 +131,29 @@ function downloadTxtFile(filename, content) {
     URL.revokeObjectURL(url);
 }
 
-// 删除
 function deleteWork(index) {
     if (confirm('确定要删除这个作品吗？')) {
-        works.splice(index, 1);
-        saveWorks();
-        renderList();
+        const workId = works[index].id;
+        fetch(`/api/delete/${workId}`, { method: 'DELETE' })
+            .then(() => loadWorks());
     }
 }
 
-// 清空全部
 clearBtn.addEventListener('click', () => {
     if (works.length === 0) return;
     if (confirm('确定要清空所有作品吗？此操作不可恢复。')) {
-        works = [];
-        saveWorks();
-        renderList();
+        fetch('/api/clear', { method: 'DELETE' })
+            .then(() => loadWorks());
     }
 });
 
-// HTML 转义防注入
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// 绑定事件
 function bindEvents() {
-    // 键盘 ESC 关闭弹窗
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closePreview();
@@ -180,5 +161,4 @@ function bindEvents() {
     });
 }
 
-// 启动
 init();
